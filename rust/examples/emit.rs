@@ -50,7 +50,10 @@ async fn main() {
         Err(KiteError::RateLimit {
             retry_after_secs, ..
         }) => {
-            eprintln!("rate limited; retry after {retry_after_secs:?}s");
+            match retry_after_secs {
+                Some(secs) => eprintln!("rate limited; retry after {secs}s"),
+                None => eprintln!("rate limited; no retry-after provided"),
+            }
             std::process::exit(1);
         }
         Err(err) => {
