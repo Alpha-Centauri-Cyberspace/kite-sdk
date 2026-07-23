@@ -147,6 +147,71 @@ describe("emitEvent", () => {
     expect(sent.source).toBe("https://custom");
     expect(sent.mycustomext).toBe("keep-me");
   });
+
+  it("accepts string, number, and boolean extension values", async () => {
+    const { kite, fetchMock } = newKite();
+    fetchMock.mockResolvedValueOnce(jsonResponse(202, ACCEPTED_BODY));
+
+    await kite.emitEvent({
+      specversion: "1.0",
+      id: "evt-2",
+      source: "https://custom",
+      type: "com.custom.type",
+      strext: "s",
+      numext: 42,
+      boolext: true,
+    });
+
+    const sent = JSON.parse(fetchMock.mock.calls[0]![1].body);
+    expect(sent.strext).toBe("s");
+    expect(sent.numext).toBe(42);
+    expect(sent.boolext).toBe(true);
+  });
+
+  it("rejects an invalid extension name before sending", async () => {
+    const { kite, fetchMock } = newKite();
+
+    await expect(
+      kite.emitEvent({
+        specversion: "1.0",
+        id: "evt-3",
+        source: "https://custom",
+        type: "com.custom.type",
+        "bad-name": "x",
+      }),
+    ).rejects.toBeInstanceOf(KiteValidationError);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a non-string/number/boolean extension value before sending", async () => {
+    const { kite, fetchMock } = newKite();
+
+    await expect(
+      kite.emitEvent({
+        specversion: "1.0",
+        id: "evt-4",
+        source: "https://custom",
+        type: "com.custom.type",
+        objext: { nested: true },
+      }),
+    ).rejects.toBeInstanceOf(KiteValidationError);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("ignores undefined extension values", async () => {
+    const { kite, fetchMock } = newKite();
+    fetchMock.mockResolvedValueOnce(jsonResponse(202, ACCEPTED_BODY));
+
+    await kite.emitEvent({
+      specversion: "1.0",
+      id: "evt-5",
+      source: "https://custom",
+      type: "com.custom.type",
+      maybe: undefined,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("retry behavior", () => {

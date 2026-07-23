@@ -16,10 +16,27 @@ import {
   DEFAULT_INGEST_URL,
   MAX_BODY_SIZE,
 } from "./types.js";
-import { assertValidSource } from "./validate.js";
+import { assertValidSource, isValidExtensionName } from "./validate.js";
+import { generateId } from "./id.js";
 
 const CLOUDEVENTS_CONTENT_TYPE = "application/cloudevents+json; charset=utf-8";
 const JSON_CONTENT_TYPE = "application/json";
+
+/**
+ * Standard CloudEvents 1.0 context attributes. Any other top-level key on an
+ * event object is treated as an extension attribute and validated as such.
+ */
+const CE_ATTRIBUTES = new Set([
+  "specversion",
+  "id",
+  "source",
+  "type",
+  "time",
+  "subject",
+  "datacontenttype",
+  "dataschema",
+  "data",
+]);
 
 /** Base backoff (ms) for retry attempt 0; grows exponentially. */
 const BASE_BACKOFF_MS = 300;
@@ -120,7 +137,7 @@ export class Kite {
 
     const event: CloudEvent = {
       specversion: "1.0",
-      id: options.id ?? crypto.randomUUID(),
+      id: options.id ?? generateId(),
       source: options.sourceUri ?? `https://${this.source}`,
       type,
       time,
@@ -139,8 +156,16 @@ export class Kite {
   }
 
   /**
-   * Send a fully-specified structured CloudEvent as-is. Missing `specversion`
-   * or `id` are filled in; everything else is preserved.
+   * Send a fully-specified structured CloudEvent as-is. Missing `specversion`,
+   * `id`, and `source` are filled in; everything else is preserved.
+   *
+   * Extension attributes are validated client-side: names must be lowercase
+   * alphanumeric and values must be string, number, or boolean (per the
+   * CloudEvents spec). This is deliberate — if the server cannot parse the
+   * posted body as a CloudEvent (e.g. a bad extension value or a non-RFC3339
+   * `time`), it silently wraps the body as `com.{source}.event` and still
+   * returns 202, so the custom `type` would be lost with no error. Validating
+   * here surfaces a `KiteValidationError` instead of that silent downgrade.
    */
   async emitEvent(event: CloudEvent): Promise<EmitResult> {
     if (!event || typeof event !== "object") {
@@ -155,12 +180,40 @@ export class Kite {
     const payload: CloudEvent = {
       ...event,
       specversion: event.specversion ?? "1.0",
-      id: event.id ?? crypto.randomUUID(),
+      id: event.id ?? generateId(),
       source: event.source ?? `https://${this.source}`,
     };
 
+    this.validateExtensions(payload);
+
     const body = this.serialize(payload);
     return this.send(body, CLOUDEVENTS_CONTENT_TYPE);
+  }
+
+  /**
+   * Validate CloudEvent extension attributes so a malformed event fails loudly
+   * client-side rather than being silently downgraded to `com.{source}.event`
+   * by the server. `undefined` values are ignored (dropped during serialization).
+   */
+  private validateExtensions(event: CloudEvent): void {
+    for (const [key, value] of Object.entries(event)) {
+      if (CE_ATTRIBUTES.has(key) || value === undefined) {
+        continue;
+      }
+      if (!isValidExtensionName(key)) {
+        throw new KiteValidationError(
+          `invalid CloudEvent extension name "${key}": extension attribute names ` +
+            `must be lowercase alphanumeric (no hyphens, underscores, or dots)`,
+        );
+      }
+      const t = typeof value;
+      if (t !== "string" && t !== "number" && t !== "boolean") {
+        throw new KiteValidationError(
+          `invalid CloudEvent extension value for "${key}": extension values must ` +
+            `be a string, number, or boolean (got ${value === null ? "null" : t})`,
+        );
+      }
+    }
   }
 
   /**

@@ -77,15 +77,23 @@ Builds a structured CloudEvent with the given `type` and `data` and sends it
 | `summary` | `string` | — | `kitesummary` extension |
 | `subject` | `string` | — | CloudEvent `subject` |
 | `sourceUri` | `string` | `https://{source}` | CloudEvent `source` |
-| `id` | `string` | `crypto.randomUUID()` | CloudEvent `id` |
+| `id` | `string` | generated UUID v4 | CloudEvent `id` |
 | `time` | `string \| Date` | now | CloudEvent `time` |
 
 ### `kite.emitEvent(event) → Promise<EmitResult>`
 
 Escape hatch: send a fully-specified structured `CloudEvent` as-is. Missing
 `specversion`, `id`, and `source` are filled in; everything else (including
-extension attributes) is preserved. CloudEvents extension keys must be lowercase
-alphanumeric.
+extension attributes) is preserved.
+
+Extension attributes are validated client-side: names must be lowercase
+alphanumeric, and values must be a string, number, or boolean (per the
+CloudEvents spec). This guards against a **silent server-side downgrade**: if
+the server cannot parse the posted body as a CloudEvent — for example a
+non-string/number/boolean extension value, or a `time` that is not valid
+RFC3339 — it wraps the body as a plain event with `type = com.{source}.event`
+and still returns `202`, so your custom `type` would be lost with no error. The
+SDK throws `KiteValidationError` up front instead.
 
 ### `kite.emitRaw(data) → Promise<EmitResult>`
 
@@ -143,11 +151,25 @@ Other 4xx responses (401, 403, 413, 400, …) are **never** retried — they thr
 immediately. A serialized body over 256 KB throws `KitePayloadTooLargeError`
 before any network call.
 
+### At-least-once delivery
+
+Delivery is **at-least-once**. If a request succeeds on the server but the
+success response is lost (a dropped connection or a timeout on the way back),
+the SDK retries and the event can be **delivered more than once**. The server
+mints a fresh internal `event_id` per HTTP request, so it cannot deduplicate
+these for you.
+
+The CloudEvent `id` *is* stable across a request's retries — the body is
+serialized once, before the retry loop — so **dedupe on the CloudEvent `id`**
+in your consumer if you need exactly-once handling. Pass `options.id` (or set
+`event.id` for `emitEvent`) to use a stable business key (e.g. an order id) as
+the CloudEvent `id`, making that dedupe deterministic across process restarts.
+
 ## Runtime support
 
 | Runtime | Supported | Notes |
 |---|---|---|
-| Node.js | ✅ 18+ | Uses global `fetch` / `crypto`. |
+| Node.js | ✅ 18+ | Uses global `fetch`; falls back to a WebCrypto/`Math.random` UUID when `crypto.randomUUID` is unavailable (stock Node 18). |
 | Bun | ✅ | |
 | Deno | ✅ | |
 | Cloudflare Workers / edge | ✅ | No Node-only APIs in the runtime path. |
