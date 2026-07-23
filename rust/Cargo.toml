@@ -1,0 +1,36 @@
+[package]
+name = "kite-sdk"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "Emit events from your application into Kite's ingest pipeline as CloudEvents."
+repository = "https://github.com/Alpha-Centauri-Cyberspace/kite-sdk"
+homepage = "https://getkite.sh"
+readme = "README.md"
+keywords = ["kite", "webhooks", "cloudevents", "events", "ingest"]
+categories = ["web-programming", "api-bindings"]
+
+[dependencies]
+# rustls-tls (not native-tls) keeps the crate portable — no OpenSSL/system TLS
+# at build or run time. default-features = false drops the native-tls default.
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+# The CloudEvents event model. Using the same crate the server parses with
+# guarantees structured-mode round-trip compatibility.
+cloudevents-sdk = "0.9"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+uuid = { version = "1", features = ["v4"] }
+chrono = "0.4"
+# Only the timer is used, and only for retry backoff sleeps. reqwest already
+# pulls a tokio runtime; this makes the dependency explicit and minimal.
+tokio = { version = "1", default-features = false, features = ["time"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+wiremock = "0.6"
+serde_json = "1"
+chrono = "0.4"
+
+[[example]]
+name = "emit"
