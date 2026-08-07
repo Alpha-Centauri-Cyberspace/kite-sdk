@@ -25,8 +25,15 @@ your app ──(SDK)──▶ api.getkite.sh ──▶ kite CLI / agents
 
 | Directory | Package | Status |
 |---|---|---|
-| [`typescript/`](./typescript) | `@getkite/sdk` (npm) | In development |
-| [`rust/`](./rust) | `kite-sdk` (crates.io) | In development |
+| [`typescript/`](./typescript) | `@getkite/sdk` (npm) | Unpublished |
+| [`rust/`](./rust) | `kite-sdk` (crates.io) | Unpublished |
+
+Both packages are verified from their packed artifacts in CI. Maintainers should
+follow the [release runbook](./docs/RELEASING.md); source availability does not
+mean either registry package has been published.
+
+See the [changelog](./CHANGELOG.md) for release notes and the
+[security policy](./SECURITY.md) for private vulnerability reporting.
 
 ## Quick look (TypeScript)
 

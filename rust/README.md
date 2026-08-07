@@ -15,6 +15,9 @@ your app ──(SDK)──▶ api.getkite.sh ──▶ kite CLI / agents
 
 ## Install
 
+Install only a version listed on crates.io; a source checkout or local package
+build does not establish registry availability.
+
 ```bash
 cargo add kite-sdk
 ```
@@ -68,7 +71,7 @@ kite stream
 | `source` | `impl Into<String>` | — | **Required.** Event source slug. Validated client-side: lowercase alphanumeric + hyphen, must start alphanumeric, ≤64 chars, not `kite`. |
 | `token` | `impl Into<String>` | — | **Required.** Hook token from `kite endpoints create`. |
 | `ingest_url` | `impl Into<String>` | `https://api.getkite.sh` | Ingest base URL. |
-| `auth_mode` | `AuthMode` | `AuthMode::Bearer` | `Bearer` sends `Authorization: Bearer <token>`; `Path` puts the token in the URL. |
+| `auth_mode` | `AuthMode` | `AuthMode::Bearer` | `Bearer` sends an authorization header; `Path` puts the token in the URL. |
 | `max_retries` | `u32` | `3` | Max retry attempts for retryable failures. |
 
 `.build()` validates the config (including the source rules and the ingest URL)
@@ -191,4 +194,4 @@ KITE_TEAM_ID=... KITE_SOURCE=my-app KITE_HOOK_TOKEN=... \
 
 ## License
 
-[MIT](../LICENSE) © Alpha Centauri Cyberspace
+[MIT](./LICENSE) © Alpha Centauri Cyberspace

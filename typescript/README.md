@@ -14,6 +14,9 @@ your app ──(SDK)──▶ api.getkite.sh ──▶ kite CLI / agents
 
 ## Install
 
+Install only a version listed on npm; a source checkout or local package build
+does not establish registry availability.
+
 ```bash
 npm install @getkite/sdk
 # or: pnpm add @getkite/sdk  /  bun add @getkite/sdk
@@ -63,7 +66,7 @@ kite stream
 | `source` | `string` | — | **Required.** Event source slug. Validated client-side: lowercase alphanumeric + hyphen, must start alphanumeric, ≤64 chars, not `kite`. |
 | `token` | `string` | — | **Required.** Hook token from `kite endpoints create`. |
 | `ingestUrl` | `string` | `https://api.getkite.sh` | Ingest base URL. |
-| `authMode` | `"bearer" \| "path"` | `"bearer"` | `bearer` sends `Authorization: Bearer <token>`; `path` puts the token in the URL. |
+| `authMode` | `"bearer" \| "path"` | `"bearer"` | `bearer` sends an authorization header; `path` puts the token in the URL. |
 | `maxRetries` | `number` | `3` | Max retry attempts for retryable failures. |
 | `fetch` | `typeof fetch` | global `fetch` | Injectable for testing / custom runtimes. |
 
@@ -182,4 +185,4 @@ program that reads config from environment variables.
 
 ## License
 
-[MIT](../LICENSE) © Alpha Centauri Cyberspace
+[MIT](./LICENSE) © Alpha Centauri Cyberspace

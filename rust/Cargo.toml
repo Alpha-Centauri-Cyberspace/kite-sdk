@@ -2,13 +2,16 @@
 name = "kite-sdk"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.85"
 license = "MIT"
 description = "Emit events from your application into Kite's ingest pipeline as CloudEvents."
 repository = "https://github.com/Alpha-Centauri-Cyberspace/kite-sdk"
 homepage = "https://getkite.sh"
+documentation = "https://docs.rs/kite-sdk"
 readme = "README.md"
 keywords = ["kite", "webhooks", "cloudevents", "events", "ingest"]
 categories = ["web-programming", "api-bindings"]
+include = ["src/**", "examples/**", "tests/**", "Cargo.toml", "README.md", "LICENSE"]
 
 [dependencies]
 # rustls-tls (not native-tls) keeps the crate portable — no OpenSSL/system TLS
@@ -28,7 +31,7 @@ tokio = { version = "1", default-features = false, features = ["time"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
-wiremock = "0.6"
+wiremock = "=0.6.4"
 serde_json = "1"
 chrono = "0.4"
 
