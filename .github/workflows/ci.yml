@@ -34,6 +34,9 @@ jobs:
       - name: Verify release metadata
         run: node ../scripts/check-release-metadata.mjs
 
+      - name: Test registry release preflight
+        run: node --test ../scripts/check-release-availability.test.mjs
+
       - name: Typecheck
         run: npm run typecheck
 

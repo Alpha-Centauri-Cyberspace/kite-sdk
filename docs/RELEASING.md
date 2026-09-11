@@ -35,12 +35,34 @@ Complete these steps before creating a release tag:
    Cargo configuration.
 
 Both registries require the package to exist before trusted publishing can be
-configured. The first publication is therefore a bootstrap operation. An owner
-must publish from a clean checkout of the reviewed, merged, tagged commit using
-interactive 2FA or a narrowly scoped, short-lived registry credential. Never put
-that credential in this repository, logs, command arguments, or a feature-branch
-workflow. Delete/revoke it immediately after the first release and configure OIDC
-before any later release.
+configured. The first publication is therefore a bootstrap operation. **Do not
+dispatch the Publish SDK workflow for the bootstrap release** — trusted
+publishing is rejected until the registry-side configuration exists, so the
+approved workflow run would fail. Instead, an owner must publish 0.1.0 from a
+clean checkout of the reviewed, merged, tagged commit:
+
+1. Run the full local validation from "Prepare a release pull request" on the
+   tagged commit.
+2. Confirm the version is absent from both registries:
+   `node scripts/check-release-availability.mjs --target=both`.
+3. Publish npm with provenance disabled (OIDC provenance is not available
+   outside GitHub Actions, and `publishConfig.provenance` is intentionally not
+   set):
+
+   ```bash
+   cd typescript && npm publish --access public --provenance=false
+   ```
+
+4. Publish crates.io with a short-lived, narrowly scoped credential:
+
+   ```bash
+   cargo publish --manifest-path rust/Cargo.toml
+   ```
+
+Never put that credential in this repository, logs, command arguments, or a
+feature-branch workflow. Delete/revoke it immediately after the first release
+and configure OIDC trusted publishing (see steps 5–6 above) before any later
+release. All later releases go through the Publish SDK workflow.
 
 ## Prepare a release pull request
 

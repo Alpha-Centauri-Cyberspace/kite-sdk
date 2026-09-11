@@ -64,7 +64,9 @@ if (npm.present) {
   }
 }
 if (crates.present) {
-  const repository = normalizeRepository(crates.body.crate?.repository);
+  // GET /api/v1/crates/{name}/{version} returns { version: {...} } at the top
+  // level; there is no "crate" key on the version endpoint.
+  const repository = normalizeRepository(crates.body.version?.repository);
   if (repository !== expectedRepository) {
     throw new Error(
       `${cargoName}@${version} exists on crates.io but does not identify ${expectedRepository}`,

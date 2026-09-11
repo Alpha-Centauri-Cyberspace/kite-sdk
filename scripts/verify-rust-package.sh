@@ -30,7 +30,11 @@ archive="$package_target/package/${crate_name}-${crate_version}.crate"
 }
 
 prefix="${crate_name}-${crate_version}"
-mapfile -t archive_files < <(
+# mapfile requires bash 4+; macOS ships bash 3.2, so fill the array with a loop.
+archive_files=()
+while IFS= read -r entry; do
+  archive_files+=("$entry")
+done < <(
   tar -tzf "$archive" | sed '/\/$/d' | LC_ALL=C sort
 )
 expected_files=(
@@ -51,7 +55,12 @@ expected_files=(
   "$prefix/tests/http.rs"
   "$prefix/tests/integration.rs"
 )
-mapfile -t expected_files < <(printf '%s\n' "${expected_files[@]}" | LC_ALL=C sort)
+# mapfile requires bash 4+; macOS ships bash 3.2, so fill the array with a loop.
+expected_files_sorted=()
+while IFS= read -r entry; do
+  expected_files_sorted+=("$entry")
+done < <(printf '%s\n' "${expected_files[@]}" | LC_ALL=C sort)
+expected_files=("${expected_files_sorted[@]}")
 
 if [[ "$(printf '%s\n' "${archive_files[@]}")" != "$(printf '%s\n' "${expected_files[@]}")" ]]; then
   printf '%s\n' 'unexpected cargo package contents' >&2
