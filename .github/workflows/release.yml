@@ -1,0 +1,154 @@
+name: Publish SDK
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Registry to publish (one registry per approved run)
+        required: true
+        type: choice
+        options:
+          - npm
+          - crates
+
+run-name: Publish ${{ inputs.target }} from ${{ github.ref_name }}
+
+permissions: {}
+
+concurrency:
+  group: sdk-publish-${{ github.ref_name }}-${{ inputs.target }}
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    name: Verify release tag and registry state
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.metadata.outputs.version }}
+    steps:
+      - name: Check out the selected tag
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Require a version tag merged to main
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF_TYPE" == "tag" ]] || {
+            printf 'Select an existing v* tag when dispatching this workflow.\n' >&2
+            exit 1
+          }
+          [[ "$GITHUB_REF_NAME" == v* ]] || {
+            printf 'Release tags must start with v.\n' >&2
+            exit 1
+          }
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || {
+            printf 'The selected tag is not reachable from origin/main.\n' >&2
+            exit 1
+          }
+
+      - name: Verify names, versions, licenses, and tag
+        id: metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/check-release-metadata.mjs --tag "$GITHUB_REF_NAME"
+          version="$(node -p "require('./typescript/package.json').version")"
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+
+      - name: Refuse an existing registry version
+        run: node scripts/check-release-availability.mjs --target="${{ inputs.target }}"
+
+  publish-npm:
+    name: Publish @getkite/sdk
+    if: inputs.target == 'npm'
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: typescript
+    steps:
+      - name: Check out the selected tag
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node with OIDC-capable npm
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org/
+          package-manager-cache: false
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Re-verify source and package artifact
+        env:
+          KITE_ARTIFACT_DIR: ${{ runner.temp }}/artifacts
+        run: |
+          node ../scripts/check-release-metadata.mjs --tag "$GITHUB_REF_NAME"
+          npm run check
+          npm run verify:package
+
+      - name: Publish with npm trusted publishing and provenance
+        run: npm publish --access public
+
+      - name: Verify a clean public npm consumer
+        working-directory: .
+        run: bash scripts/verify-registry-consumers.sh npm "${{ needs.preflight.outputs.version }}"
+
+  publish-crates:
+    name: Publish kite-sdk
+    if: inputs.target == 'crates'
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out the selected tag
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+        with:
+          toolchain: 1.85.0
+          components: rustfmt, clippy
+
+      - name: Re-verify source and package artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/check-release-metadata.mjs --tag "$GITHUB_REF_NAME"
+          cargo fmt --manifest-path rust/Cargo.toml --check
+          cargo clippy --manifest-path rust/Cargo.toml --all-targets --all-features -- -D warnings
+          cargo test --manifest-path rust/Cargo.toml
+          bash scripts/verify-rust-package.sh
+
+      - name: Exchange GitHub OIDC identity for a crates.io token
+        id: crates-auth
+        uses: rust-lang/crates-io-auth-action@c6f97d42243bad5fab37ca0427f495c86d5b1a18 # v1
+
+      - name: Publish with crates.io trusted publishing
+        run: cargo publish --manifest-path rust/Cargo.toml
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.crates-auth.outputs.token }}
+
+      - name: Verify a clean public crates.io consumer
+        run: bash scripts/verify-registry-consumers.sh crates "${{ needs.preflight.outputs.version }}"
